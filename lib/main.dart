@@ -29,11 +29,37 @@ class MockSessionRepo implements SessionRepository {
   @override Future<void> endSession(String sessionId) async {}
 }
 class MockUploadService implements AnalyticsUploadService {
-  @override Future<bool> uploadBatch(List<AnalyticsEvent> events) async {
-    debugPrint('[MockUploadService] Uploading ${events.length} events...');
-    for (var e in events) {
-      debugPrint('  -> Event: ${e.eventType} | Screen: ${e.screenName}');
+  @override
+  Future<bool> uploadBatch(List<AnalyticsEvent> events) async {
+    debugPrint('\x1B[35m==================================================\x1B[0m');
+    debugPrint('\x1B[36m🚀 [MockUploadService] Uploading ${events.length} events...\x1B[0m');
+    debugPrint('\x1B[35m--------------------------------------------------\x1B[0m');
+    for (var i = 0; i < events.length; i++) {
+      final e = events[i];
+      String color = '\x1B[32m'; // Green default
+      String icon = '📝';
+      
+      final type = e.eventType.toString().toLowerCase();
+      if (type.contains('error')) {
+        color = '\x1B[31m'; // Red for errors
+        icon = '❌';
+      } else if (type.contains('tap') || type.contains('gesture')) {
+        color = '\x1B[33m'; // Yellow for taps
+        icon = '👆';
+      } else if (type.contains('screen') || type.contains('viewed')) {
+        color = '\x1B[34m'; // Blue for screen transitions
+        icon = '👁️';
+      } else if (type.contains('ground') || type.contains('lifecycle')) {
+        color = '\x1B[36m'; // Cyan for lifecycle changes
+        icon = '🔄';
+      }
+      
+      debugPrint('$color[$icon Event #${i + 1}] Type: ${e.eventType} | Screen: ${e.screenName ?? "None"}\x1B[0m');
+      if (e.metadata.isNotEmpty) {
+        debugPrint('  \x1B[90m⚙️ Metadata: ${e.metadata}\x1B[0m');
+      }
     }
+    debugPrint('\x1B[35m==================================================\x1B[0m');
     return true;
   }
 }

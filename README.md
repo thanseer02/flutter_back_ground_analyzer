@@ -142,7 +142,7 @@ The analytics architecture consists of standard clean-architecture folders under
 
 ## 🚀 How to Add Analytics to a New Project (For Beginners)
 
-Step-by-step recipe to integrate this system:
+Here are the step-by-step instructions to integrate this system into another app:
 
 ### 1. Add Dependencies
 Add these libraries to your project's `pubspec.yaml` and run `flutter pub get`:
@@ -182,14 +182,97 @@ lib/
 ```
 
 ### 3. Implement Custom Connectors
-Implement these abstract interfaces:
-*   `NetworkRepository`: Check current network connectivity.
-*   `AnalyticsUploadService`: Connect and send event lists to your logging endpoint (e.g. Firebase or HTTP API).
+Create a new file `lib/features/analytics/data/repositories/custom_connectors.dart` and paste these ready-to-use implementations:
+
+```dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../domain/entities/session.dart';
+import '../../domain/entities/analytics_event.dart';
+import '../../domain/repositories/network_repository.dart';
+import '../../domain/repositories/session_repository.dart';
+import '../../core/uploader/analytics_upload_service.dart';
+
+// 1. Checks if the device is connected to the internet
+class ConnectivityNetworkRepository implements NetworkRepository {
+  @override
+  Future<bool> isConnected() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult is List) {
+      return !connectivityResult.contains(ConnectivityResult.none);
+    }
+    return connectivityResult != ConnectivityResult.none;
+  }
+}
+
+// 2. Local memory representation to track and save current session details 
+class InMemorySessionRepository implements SessionRepository {
+  Session? _currentSession;
+
+  @override
+  Future<void> saveSession(Session session) async {
+    _currentSession = session;
+  }
+
+  @override
+  Future<Session?> getCurrentSession() async {
+    return _currentSession;
+  }
+
+  @override
+  Future<void> updateSession(Session session) async {
+    _currentSession = session;
+  }
+
+  @override
+  Future<void> endSession(String sessionId) async {
+    _currentSession = null;
+  }
+
+  @override
+  Future<void> clearSession() async {
+    _currentSession = null;
+  }
+}
+
+// 3. Uploads batches of local logs to your production server via HTTP
+class HttpUploadService implements AnalyticsUploadService {
+  final String apiEndpoint = 'https://api.myanalytics-server.com/v1/events';
+
+  @override
+  Future<bool> uploadBatch(List<AnalyticsEvent> events) async {
+    try {
+      final response = await http.post(
+        Uri.parse(apiEndpoint),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(events.map((e) => e.toJson()).toList()),
+      );
+      // Returns true if server accepted the events batch
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (_) {
+      return false; // Triggers SyncEngine retry automatically
+    }
+  }
+}
+```
 
 ### 4. Initialize in `main.dart`
 Configure and startup the analytics subsystem in your `main()` method:
 
 ```dart
+import 'package:flutter/material.dart';
+import 'features/analytics/core/storage/hive_storage_service.dart';
+import 'features/analytics/data/repositories/analytics_repository_impl.dart';
+import 'features/analytics/core/queue/queue_manager.dart';
+import 'features/analytics/core/session/session_manager.dart';
+import 'features/analytics/core/recorder/device_metadata_service.dart';
+import 'features/analytics/presentation/services/analytics.dart';
+import 'features/analytics/core/sync/sync_engine.dart';
+import 'features/analytics/core/trackers/app_lifecycle_observer.dart';
+import 'features/analytics/core/trackers/error_tracker_service.dart';
+import 'features/analytics/data/repositories/custom_connectors.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -200,7 +283,7 @@ void main() async {
   // 2. Instantiate managers
   final analyticsRepo = AnalyticsRepositoryImpl(storageService);
   final queueManager = QueueManager(analyticsRepo);
-  final sessionManager = SessionManager(YourSessionRepositoryImpl());
+  final sessionManager = SessionManager(InMemorySessionRepository());
   final metadataService = DeviceMetadataService();
 
   // 3. Initialize singleton facade
@@ -211,15 +294,15 @@ void main() async {
     metadataService: metadataService,
   );
 
-  // 4. Start background syncing (e.g., uploads every 2 minutes)
+  // 4. Start background syncing (uploads every 2 minutes when online)
   final syncEngine = SyncEngine(
     queueManager, 
-    MyProductionUploadService(), 
-    YourNetworkRepositoryImpl()
+    HttpUploadService(), 
+    ConnectivityNetworkRepository()
   );
   syncEngine.startSyncTimer(interval: const Duration(minutes: 2));
 
-  // 5. Connect lifecycle and unhandled error trackers
+  // 5. Connect lifecycle and unhandled error trackers automatically
   final lifecycleObserver = AppLifecycleObserver(analytics);
   lifecycleObserver.start();
 
@@ -234,6 +317,10 @@ void main() async {
 Wrap your root widget to capture screen and gesture changes:
 
 ```dart
+import 'features/analytics/core/trackers/analytics_gesture_detector.dart';
+import 'features/analytics/core/trackers/analytics_navigator_observer.dart';
+import 'features/analytics/presentation/services/analytics.dart';
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -255,6 +342,9 @@ class MyApp extends StatelessWidget {
 ### 6. Track Actions Manually
 Record events dynamically anywhere in your widgets:
 ```dart
+import 'features/analytics/presentation/services/analytics.dart';
+import 'features/analytics/domain/entities/event_type.dart';
+
 Analytics().recordEvent(
   EventType.customEvent,
   screenName: 'product_details',
@@ -263,4 +353,57 @@ Analytics().recordEvent(
     'click_source': 'homepage_banner',
   },
 );
+```
+
+---
+
+## 📊 Where does the Analytics Data Go? (Data Flow & Logs)
+
+Since this is an **offline-first local analyzer**, telemetry logs flow through various states before reaching their destination:
+
+```text
+[User Interaction] -> Saved to local Hive box Database (on device)
+                           ↓
+[Internet Restored] -> SyncEngine triggers batch upload via HttpUploadService
+                           ↓
+[API Backend Server] -> Stored in your backend database (PostgreSQL/Mongo etc.)
+```
+
+### 1. Locally on the Device (Hive storage)
+During app usage, events are stored locally inside a Hive database on the phone. This prevents telemetry data loss.
+*   **Database Box File**: `analytics_events_box`
+
+### 2. Printed in the Debug Console (For Developers)
+If you configure a mock or log-printing uploader service in development (like `MockUploadService` inside `main.dart`), you will see the logs live in your debug console (VS Code, Android Studio, or terminal):
+
+```text
+[MockUploadService] Uploading 3 events...
+  -> Event: EventType.appOpened | Screen: null
+  -> Event: EventType.screenViewed | Screen: /home
+  -> Event: EventType.tap | Screen: /details
+```
+
+### 3. Remote Server Database (Production)
+In production, your HTTP client (`HttpUploadService`) pushes the JSON data to your server. This is where you actually inspect metrics across all users.
+
+#### Example Event JSON payload:
+```json
+{
+  "eventId": "ee22c833-2895-46aa-becb-0dbe01c56ad4",
+  "sessionId": "4569f109-b69a-41bf-811c-d784a929dd54",
+  "userId": "user_12345",
+  "timestamp": "2026-07-05T04:20:00.000Z",
+  "deviceTime": "2026-07-05T09:50:00.000",
+  "timezone": "IST",
+  "screenName": "/details",
+  "eventType": "tap",
+  "metadata": {},
+  "appVersion": "1.0.0",
+  "buildNumber": "1",
+  "platform": "android",
+  "osVersion": "Android 13",
+  "deviceModel": "Pixel 6 Pro",
+  "locale": "en_US",
+  "networkType": "wifi"
+}
 ```
