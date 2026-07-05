@@ -9,6 +9,7 @@ abstract class AnalyticsEvent with _$AnalyticsEvent {
   const factory AnalyticsEvent({
     required String eventId,
     required String sessionId,
+    required String installationId,
     String? userId,
     required DateTime timestamp,
     required DateTime deviceTime,
@@ -21,6 +22,9 @@ abstract class AnalyticsEvent with _$AnalyticsEvent {
     required String platform,
     required String osVersion,
     required String deviceModel,
+    String? manufacturer,
+    String? screenResolution,
+    String? deviceOrientation,
     required String locale,
     required String networkType,
     int? batteryLevel,

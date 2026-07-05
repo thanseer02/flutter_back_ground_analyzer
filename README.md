@@ -31,6 +31,11 @@ lib/features/analytics/
 Ensure your `pubspec.yaml` has the required dependencies (Hive, Freezed, Device Info Plus). 
 Initialize the system before running your Flutter application:
 
+### 📝 Firebase App Context
+As a Flutter package/plugin, `flutter_background_analyser` behaves as an extension of the host utility. It does **not** initialize separate Firebase instances or configurations. Instead:
+- It relies on the host application (your main project) initializing Firebase (via `await Firebase.initializeApp()`).
+- The `FirebaseUploadService` automatically maps to the default Firebase App configured in the main project, streaming all analytics events directly into your host project's Firestore database and Firebase Analytics console.
+
 ```dart
 import 'package:flutter_background_analyser/features/analytics/presentation/services/analytics.dart';
 

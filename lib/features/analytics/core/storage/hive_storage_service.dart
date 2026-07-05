@@ -15,9 +15,20 @@ class HiveStorageService {
     await _box.put(event.eventId, jsonEncode(event.toJson()));
   }
 
+  static const String _installationIdKey = '__installation_id__';
+
+  Future<String?> getInstallationId() async {
+    return _box.get(_installationIdKey);
+  }
+
+  Future<void> saveInstallationId(String id) async {
+    await _box.put(_installationIdKey, id);
+  }
+
   Future<List<AnalyticsEvent>> getEvents() async {
     final List<AnalyticsEvent> events = [];
     for (var key in _box.keys) {
+      if (key == _installationIdKey) continue;
       final String? jsonStr = _box.get(key);
       if (jsonStr != null) {
         try {

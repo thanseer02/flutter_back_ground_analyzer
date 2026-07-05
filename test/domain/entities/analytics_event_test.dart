@@ -9,6 +9,7 @@ void main() {
     final event = AnalyticsEvent(
       eventId: '123',
       sessionId: 'abc',
+      installationId: 'test_inst_id',
       timestamp: time,
       deviceTime: time,
       timezone: 'UTC',

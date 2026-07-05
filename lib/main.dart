@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_background_analyser/features/analytics/core/queue/queue_manager.dart';
 import 'package:flutter_background_analyser/features/analytics/core/recorder/device_metadata_service.dart';
 import 'package:flutter_background_analyser/features/analytics/core/session/session_manager.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_background_analyser/features/analytics/core/trackers/ana
 import 'package:flutter_background_analyser/features/analytics/core/trackers/app_lifecycle_observer.dart';
 import 'package:flutter_background_analyser/features/analytics/core/trackers/error_tracker_service.dart';
 import 'package:flutter_background_analyser/features/analytics/data/repositories/analytics_repository_impl.dart';
+import 'package:flutter_background_analyser/features/analytics/data/repositories/firebase_upload_service.dart';
 import 'package:flutter_background_analyser/features/analytics/presentation/services/analytics.dart';
 
 // Mock Services for Demo
@@ -67,6 +69,14 @@ class MockUploadService implements AnalyticsUploadService {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  bool firebaseConnected = false;
+  try {
+    await Firebase.initializeApp();
+    firebaseConnected = true;
+  } catch (e) {
+    debugPrint('\x1B[33m⚠️ Firebase not initialized. Using MockUploadService fallback simulations.\x1B[0m');
+  }
+
   // 1. Initialize Storage
   final storageService = HiveStorageService();
   await storageService.init();
@@ -83,10 +93,12 @@ void main() async {
     queueManager: queueManager,
     sessionManager: sessionManager,
     metadataService: metadataService,
+    storageService: storageService,
   );
 
   // 4. Setup Sync Engine
-  final syncEngine = SyncEngine(queueManager, MockUploadService(), MockNetworkRepo());
+  final uploadService = firebaseConnected ? FirebaseUploadService() : MockUploadService();
+  final syncEngine = SyncEngine(queueManager, uploadService, MockNetworkRepo());
   syncEngine.startSyncTimer(interval: const Duration(seconds: 30)); // fast for testing
 
   // 5. Setup Observers

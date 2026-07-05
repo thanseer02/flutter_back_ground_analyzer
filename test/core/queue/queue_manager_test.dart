@@ -32,6 +32,7 @@ AnalyticsEvent createTestEvent(String id, DateTime time) {
   return AnalyticsEvent(
     eventId: id,
     sessionId: 'session',
+    installationId: 'test_inst_id',
     timestamp: time,
     deviceTime: time,
     timezone: 'UTC',
