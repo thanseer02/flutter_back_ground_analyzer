@@ -2,116 +2,87 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 
-/// Prints a formatted API response to the debug console.
+// ─────────────────────────────────────────────────────────────────────────────
+// printApiResponse
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Prints a clean, structured log entry to the Flutter debug console.
 ///
-/// - [object]    : The response body / data to inspect (Map, List, String, etc.)
-/// - [head]      : A label to identify the log source (e.g., function name or API tag)
-/// - [statusCode]: Optional HTTP status code (200, 404, 500, etc.)
-/// - [tag]       : Optional grouping tag for filtering logs (defaults to 'API')
-/// - [error]     : Set to true to highlight this entry as an error
+/// Uses [developer.log] so entries appear in the **Flutter DevTools › Logging**
+/// tab with proper grouping, and are completely silent in release builds.
 ///
-/// Example:
+/// ## Parameters
+/// - [object]     — The data to log (Map, List, String, or anything).
+/// - [head]       — A short label for the log source, e.g. `'[NFC]'`.
+/// - [tag]        — Category shown as `[TAG › Head]` in DevTools. Default `'LOG'`.
+/// - [statusCode] — Optional HTTP status code shown next to the header.
+/// - [error]      — Set `true` to route this entry as an error in DevTools.
+///
+/// ## Usage
 /// ```dart
-/// printApiResponse(
-///   response.data,
-///   head: 'getUserProfile',
-///   statusCode: response.statusCode,
-/// );
+/// // Simple message
+/// printApiResponse('Session started', head: '[NFC]');
+///
+/// // With a Map / List — pretty-printed as JSON
+/// printApiResponse(response.data, head: 'getUserProfile', statusCode: 200);
+///
+/// // Error path
+/// printApiResponse('Write failed', head: '[NFC ERROR]', error: true);
+/// ```
+///
+/// ## Output example (in the run console)
+/// ```
+/// [NFC › getUserProfile] (200)
+///   {
+///     "id": 1,
+///     "name": "Alice"
+///   }
 /// ```
 void printLogs(
   Object? object, {
-  String? head = "Head",
+  String head = 'Log',
+  String tag = 'LOG',
   int? statusCode,
-  String tag = 'API',
   bool error = false,
 }) {
+  // Silent in release builds — no performance cost in production.
   if (!kDebugMode) return;
 
-  // ── ANSI color codes ──────────────────────────────────────────
-  const reset = '\x1B[0m';
-  const bold = '\x1B[1m';
-  const green = '\x1B[32m';
-  const cyan = '\x1B[36m';
-  const yellow = '\x1B[33m';
-  const red = '\x1B[31m';
-  const magenta = '\x1B[35m';
-  const white = '\x1B[97m';
-  const dimGray = '\x1B[90m';
+  // ── Format the body ──────────────────────────────────────────────────────
+  final body = _formatBody(object);
 
-  // ── Helpers ───────────────────────────────────────────────────
-  final now = DateTime.now();
-  final timestamp =
-      '${now.hour.toString().padLeft(2, '0')}:'
-      '${now.minute.toString().padLeft(2, '0')}:'
-      '${now.second.toString().padLeft(2, '0')}.'
-      '${now.millisecond.toString().padLeft(3, '0')}';
+  // ── Build a compact header line ──────────────────────────────────────────
+  // Example: "(200)" or "" when no status code is provided.
+  final status = statusCode != null ? ' ($statusCode)' : '';
+  final header = '[$tag › $head]$status';
 
-  final typeLabel = object == null ? 'null' : object.runtimeType.toString();
-
-  final statusLabel = statusCode != null
-      ? _statusBadge(statusCode, green, yellow, red, reset)
-      : '';
-
-  final bodyColor = error ? red : green;
-  final headerColor = error ? red : cyan;
-
-  const divider = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-
-  // ── Formatted body ────────────────────────────────────────────
-  final formattedBody = _formatBody(object);
-
-  // ── Assemble log lines ────────────────────────────────────────
-  final buffer = StringBuffer()
-    ..writeln('$dimGray$divider$reset')
-    ..writeln(
-      '$bold$headerColor▶  $head$reset  '
-      '$dimGray[$tag]$reset  '
-      '$white$timestamp$reset'
-      '${statusLabel.isNotEmpty ? '  $statusLabel' : ''}',
-    )
-    ..writeln('$dimGray  type    →$reset $magenta$typeLabel$reset')
-    ..writeln('$dimGray  payload →$reset\n$bodyColor$formattedBody$reset')
-    ..write('$dimGray$divider$reset');
-
-  // printLogs chunks long strings safely (avoids logcat truncation).
-  printLogs(buffer.toString());
-
-  // Also route to dart:developer so it shows up in DevTools logs.
+  // ── Single call to developer.log ─────────────────────────────────────────
+  // This appears in DevTools Logging with the correct name, level, and time.
+  // Passing [error] as the error object highlights it red in DevTools.
   developer.log(
-    formattedBody,
+    '$header\n$body',
     name: '$tag › $head',
-    time: now,
-    error: error ? object : null,
+    time: DateTime.now(),
+    error: error ? (object ?? 'error') : null,
   );
 }
 
-// ── Private helpers ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Private helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
-/// Returns a colored HTTP status badge string.
-String _statusBadge(
-  int code,
-  String green,
-  String yellow,
-  String red,
-  String reset,
-) {
-  final color = code >= 200 && code < 300
-      ? green
-      : code >= 400 && code < 500
-      ? yellow
-      : red;
-  return '$color[$code]$reset';
-}
-
-/// Pretty-prints [object] — handles Map/List with indentation,
-/// long strings, and falls back gracefully for any other type.
+/// Converts [object] to a readable string.
+///
+/// - Maps and Lists are pretty-printed as indented JSON.
+/// - Strings longer than 800 chars are truncated to avoid console flooding.
+/// - Any other type falls back to `.toString()`.
 String _formatBody(Object? object) {
   if (object == null) return '  (null)';
 
   try {
     if (object is Map || object is List) {
-      // Indent each line of the JSON-like structure for readability.
       const encoder = JsonEncoder.withIndent('  ');
+      // Indent every line so the JSON sits under the header cleanly.
       return encoder
           .convert(object)
           .split('\n')
@@ -120,12 +91,15 @@ String _formatBody(Object? object) {
     }
 
     final raw = object.toString();
+
+    // Truncate very long strings — avoids flooding logcat.
     if (raw.length > 800) {
-      // Avoid flooding the console for huge blobs.
-      return '  ${raw.substring(0, 800)}\n  … (${raw.length - 800} chars truncated)';
+      return '  ${raw.substring(0, 800)}\n'
+          '  … (${raw.length - 800} more chars)';
     }
+
     return '  $raw';
   } catch (_) {
-    return '  (unable to format: ${object.runtimeType})';
+    return '  (unable to format — type: ${object.runtimeType})';
   }
 }
