@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_background_analyser/features/analytics/core/uploader/analytics_upload_service.dart';
 import 'package:flutter_background_analyser/features/analytics/domain/entities/analytics_event.dart';
 
@@ -11,20 +12,36 @@ class FirebaseUploadService implements AnalyticsUploadService {
   FirebaseUploadService({
     FirebaseFirestore? firestore,
     FirebaseAnalytics? analytics,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _analytics = analytics ?? FirebaseAnalytics.instance;
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _analytics = analytics ?? FirebaseAnalytics.instance;
 
   @override
   Future<bool> uploadBatch(List<AnalyticsEvent> events) async {
-    if (events.isEmpty) return true;
-    if (Firebase.apps.isEmpty) return true;
+    if (events.isEmpty) {
+      debugPrint('🔥 [FirebaseUploadService] No events to upload.');
+      return true;
+    }
+
+    if (Firebase.apps.isEmpty) {
+      debugPrint(
+        '🔥 [FirebaseUploadService] Firebase is not initialized. Skipping upload.',
+      );
+      return true;
+    }
 
     try {
+      debugPrint(
+        '🔥 [FirebaseUploadService] Uploading ${events.length} event(s) to Firestore...',
+      );
       final batch = _firestore.batch();
 
       for (final event in events) {
-        final installationId = event.installationId.isNotEmpty ? event.installationId : 'anonymous_device';
-        final sessionId = event.sessionId.isNotEmpty ? event.sessionId : 'unknown_session';
+        final installationId = event.installationId.isNotEmpty
+            ? event.installationId
+            : 'anonymous_device';
+        final sessionId = event.sessionId.isNotEmpty
+            ? event.sessionId
+            : 'unknown_session';
         final eventId = event.eventId;
 
         final docRef = _firestore
@@ -63,6 +80,9 @@ class FirebaseUploadService implements AnalyticsUploadService {
       }
 
       await batch.commit();
+      debugPrint(
+        '✅ [FirebaseUploadService] Firestore batch commit succeeded for ${events.length} event(s).',
+      );
 
       // Mirror events to Firebase Analytics in parallel triggers
       for (final event in events) {
@@ -71,12 +91,18 @@ class FirebaseUploadService implements AnalyticsUploadService {
 
       return true;
     } catch (e) {
+      debugPrint(
+        '❌ [FirebaseUploadService] Failed to upload events to Firestore: $e',
+      );
       return false;
     }
   }
 
   Future<void> _mirrorToFirebaseAnalytics(AnalyticsEvent e) async {
     try {
+      debugPrint(
+        '🔁 [FirebaseUploadService] Mirroring event ${e.eventId} to Firebase Analytics.',
+      );
       if (e.userId != null && e.userId!.isNotEmpty) {
         await _analytics.setUserId(id: e.userId);
       }
@@ -97,17 +123,11 @@ class FirebaseUploadService implements AnalyticsUploadService {
           screenName: e.screenName ?? 'unknown_screen',
         );
       } else if (name.contains('tap') || name.contains('gesture')) {
-        await _analytics.logEvent(
-          name: 'button_click',
-          parameters: parameters,
-        );
+        await _analytics.logEvent(name: 'button_click', parameters: parameters);
       } else if (name.contains('foreground') || name.contains('open')) {
         await _analytics.logAppOpen();
       } else if (name.contains('background') || name.contains('close')) {
-        await _analytics.logEvent(
-          name: 'app_close',
-          parameters: parameters,
-        );
+        await _analytics.logEvent(name: 'app_close', parameters: parameters);
       } else if (name.contains('error')) {
         await _analytics.logEvent(
           name: 'error',
@@ -117,10 +137,7 @@ class FirebaseUploadService implements AnalyticsUploadService {
           },
         );
       } else {
-        await _analytics.logEvent(
-          name: 'custom_event',
-          parameters: parameters,
-        );
+        await _analytics.logEvent(name: 'custom_event', parameters: parameters);
       }
     } catch (_) {
       // Failures in mirroring do not block main analytics stream
