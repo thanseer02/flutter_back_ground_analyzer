@@ -28,6 +28,7 @@ class SyncEngine {
   }
 
   Future<void> syncNow() async {
+    printLogs('ℹ️ [SyncEngine] Syncing now.');
     if (_isSyncing) return;
 
     final isConnected = await _networkRepository.isConnected();
