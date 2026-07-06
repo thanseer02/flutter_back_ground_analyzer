@@ -9,20 +9,29 @@ class AnalyticsNavigatorObserver extends RouteObserver<ModalRoute<dynamic>> {
 
   AnalyticsNavigatorObserver(this._tracker);
 
-  void _sendScreenView(PageRoute<dynamic> route, {PageRoute<dynamic>? previousRoute}) {
-    final String? screenName = route.settings.name;
-    if (screenName != null) {
-      _tracker.trackScreenView(screenName, metadata: {
+  void _sendScreenView(
+    PageRoute<dynamic> route, {
+    PageRoute<dynamic>? previousRoute,
+  }) {
+    final String screenName =
+        route.settings.name ?? route.runtimeType.toString();
+    _tracker.trackScreenView(
+      screenName,
+      metadata: {
+        'route_name': route.settings.name,
         'previous_route': previousRoute?.settings.name,
-      });
-    }
+      },
+    );
   }
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     super.didPush(route, previousRoute);
     if (route is PageRoute) {
-      _sendScreenView(route, previousRoute: previousRoute is PageRoute ? previousRoute : null);
+      _sendScreenView(
+        route,
+        previousRoute: previousRoute is PageRoute ? previousRoute : null,
+      );
     }
   }
 
@@ -30,7 +39,10 @@ class AnalyticsNavigatorObserver extends RouteObserver<ModalRoute<dynamic>> {
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
     super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
     if (newRoute is PageRoute) {
-      _sendScreenView(newRoute, previousRoute: oldRoute is PageRoute ? oldRoute : null);
+      _sendScreenView(
+        newRoute,
+        previousRoute: oldRoute is PageRoute ? oldRoute : null,
+      );
     }
   }
 
