@@ -18,6 +18,7 @@ class SyncEngine {
   SyncEngine(this._queueManager, this._uploadService, this._networkRepository);
 
   void startSyncTimer({Duration interval = const Duration(minutes: 5)}) {
+    printLogs('ℹ️ [SyncEngine] Starting sync timer.');
     _syncTimer?.cancel();
     _syncTimer = Timer.periodic(interval, (_) => syncNow());
   }
