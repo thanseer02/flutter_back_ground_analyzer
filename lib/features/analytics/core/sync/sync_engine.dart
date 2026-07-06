@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_background_analyser/features/analytics/core/queue/queue_manager.dart';
 import 'package:flutter_background_analyser/features/analytics/core/uploader/analytics_upload_service.dart';
 import 'package:flutter_background_analyser/features/analytics/domain/repositories/network_repository.dart';
+import 'package:flutter_background_analyser/features/analytics/presentation/services/log_helper.dart';
 
 class SyncEngine {
   final QueueManager _queueManager;
@@ -31,22 +31,22 @@ class SyncEngine {
 
     final isConnected = await _networkRepository.isConnected();
     if (!isConnected) {
-      debugPrint('ℹ️ [SyncEngine] No network connectivity. Sync deferred.');
+      printLogs('ℹ️ [SyncEngine] No network connectivity. Sync deferred.');
       return;
     }
 
     _isSyncing = true;
-    debugPrint('ℹ️ [SyncEngine] Starting sync cycle.');
+    printLogs('ℹ️ [SyncEngine] Starting sync cycle.');
 
     try {
       while (true) {
         final batch = await _queueManager.getBatch();
         if (batch.isEmpty) {
-          debugPrint('ℹ️ [SyncEngine] No pending events to sync.');
+          printLogs('ℹ️ [SyncEngine] No pending events to sync.');
           break;
         }
 
-        debugPrint(
+        printLogs(
           'ℹ️ [SyncEngine] Attempting upload for ${batch.length} pending event(s).',
         );
         final success = await _uploadService.uploadBatch(batch);
@@ -54,7 +54,7 @@ class SyncEngine {
         if (success) {
           final ids = batch.map((e) => e.eventId).toList();
           await _queueManager.removeProcessed(ids);
-          debugPrint(
+          printLogs(
             '✅ [SyncEngine] Uploaded ${batch.length} event(s) and removed processed items.',
           );
           _retryCount = 0; // reset on success
@@ -64,11 +64,11 @@ class SyncEngine {
         }
       }
     } catch (e) {
-      debugPrint('❌ [SyncEngine] Sync cycle failed: $e');
+      printLogs('❌ [SyncEngine] Sync cycle failed: $e');
       _handleFailure();
     } finally {
       _isSyncing = false;
-      debugPrint('ℹ️ [SyncEngine] Sync cycle completed.');
+      printLogs('ℹ️ [SyncEngine] Sync cycle completed.');
     }
   }
 
@@ -76,12 +76,12 @@ class SyncEngine {
     _retryCount++;
     if (_retryCount <= _maxRetries) {
       final delaySeconds = pow(2, _retryCount).toInt();
-      debugPrint(
+      printLogs(
         '⚠️ [SyncEngine] Upload failed. Retrying in $delaySeconds seconds (attempt $_retryCount/$_maxRetries).',
       );
       Future.delayed(Duration(seconds: delaySeconds), syncNow);
     } else {
-      debugPrint(
+      printLogs(
         '❌ [SyncEngine] Maximum retry attempts reached. Giving up until next sync cycle.',
       );
     }

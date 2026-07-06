@@ -19,28 +19,43 @@ import 'package:flutter_background_analyser/features/analytics/domain/repositori
 import 'package:flutter_background_analyser/features/analytics/domain/entities/session.dart';
 import 'package:flutter_background_analyser/features/analytics/core/uploader/analytics_upload_service.dart';
 import 'package:flutter_background_analyser/features/analytics/domain/entities/analytics_event.dart';
+import 'package:flutter_background_analyser/features/analytics/presentation/services/log_helper.dart';
 
 class MockNetworkRepo implements NetworkRepository {
-  @override Future<bool> isConnected() async => true;
+  @override
+  Future<bool> isConnected() async => true;
 }
+
 class MockSessionRepo implements SessionRepository {
-  @override Future<void> clearSession() async {}
-  @override Future<Session?> getCurrentSession() async => null;
-  @override Future<void> saveSession(Session session) async {}
-  @override Future<void> updateSession(Session session) async {}
-  @override Future<void> endSession(String sessionId) async {}
+  @override
+  Future<void> clearSession() async {}
+  @override
+  Future<Session?> getCurrentSession() async => null;
+  @override
+  Future<void> saveSession(Session session) async {}
+  @override
+  Future<void> updateSession(Session session) async {}
+  @override
+  Future<void> endSession(String sessionId) async {}
 }
+
 class MockUploadService implements AnalyticsUploadService {
   @override
   Future<bool> uploadBatch(List<AnalyticsEvent> events) async {
-    debugPrint('\x1B[35m==================================================\x1B[0m');
-    debugPrint('\x1B[36m🚀 [MockUploadService] Uploading ${events.length} events...\x1B[0m');
-    debugPrint('\x1B[35m--------------------------------------------------\x1B[0m');
+    printLogs(
+      '\x1B[35m==================================================\x1B[0m',
+    );
+    printLogs(
+      '\x1B[36m🚀 [MockUploadService] Uploading ${events.length} events...\x1B[0m',
+    );
+    printLogs(
+      '\x1B[35m--------------------------------------------------\x1B[0m',
+    );
     for (var i = 0; i < events.length; i++) {
       final e = events[i];
       String color = '\x1B[32m'; // Green default
       String icon = '📝';
-      
+
       final type = e.eventType.toString().toLowerCase();
       if (type.contains('error')) {
         color = '\x1B[31m'; // Red for errors
@@ -55,13 +70,17 @@ class MockUploadService implements AnalyticsUploadService {
         color = '\x1B[36m'; // Cyan for lifecycle changes
         icon = '🔄';
       }
-      
-      debugPrint('$color[$icon Event #${i + 1}] Type: ${e.eventType} | Screen: ${e.screenName ?? "None"}\x1B[0m');
+
+      printLogs(
+        '$color[$icon Event #${i + 1}] Type: ${e.eventType} | Screen: ${e.screenName ?? "None"}\x1B[0m',
+      );
       if (e.metadata.isNotEmpty) {
-        debugPrint('  \x1B[90m⚙️ Metadata: ${e.metadata}\x1B[0m');
+        printLogs('  \x1B[90m⚙️ Metadata: ${e.metadata}\x1B[0m');
       }
     }
-    debugPrint('\x1B[35m==================================================\x1B[0m');
+    printLogs(
+      '\x1B[35m==================================================\x1B[0m',
+    );
     return true;
   }
 }
@@ -74,7 +93,9 @@ void main() async {
     await Firebase.initializeApp();
     firebaseConnected = true;
   } catch (e) {
-    debugPrint('\x1B[33m⚠️ Firebase not initialized. Using MockUploadService fallback simulations.\x1B[0m');
+    printLogs(
+      '\x1B[33m⚠️ Firebase not initialized. Using MockUploadService fallback simulations.\x1B[0m',
+    );
   }
 
   // 1. Initialize Storage
@@ -97,9 +118,13 @@ void main() async {
   );
 
   // 4. Setup Sync Engine
-  final uploadService = firebaseConnected ? FirebaseUploadService() : MockUploadService();
+  final uploadService = firebaseConnected
+      ? FirebaseUploadService()
+      : MockUploadService();
   final syncEngine = SyncEngine(queueManager, uploadService, MockNetworkRepo());
-  syncEngine.startSyncTimer(interval: const Duration(seconds: 30)); // fast for testing
+  syncEngine.startSyncTimer(
+    interval: const Duration(seconds: 30),
+  ); // fast for testing
 
   // 5. Setup Observers
   final lifecycleObserver = AppLifecycleObserver(analytics);
@@ -121,13 +146,9 @@ class MyApp extends StatelessWidget {
       tracker: Analytics(),
       child: MaterialApp(
         title: 'Analytics Demo',
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-        ),
+        theme: ThemeData(primarySwatch: Colors.blue),
         // 7. Inject Navigation Observer
-        navigatorObservers: [
-          AnalyticsNavigatorObserver(Analytics()),
-        ],
+        navigatorObservers: [AnalyticsNavigatorObserver(Analytics())],
         home: const HomeScreen(),
       ),
     );
@@ -147,10 +168,13 @@ class HomeScreen extends StatelessWidget {
           children: [
             ElevatedButton(
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(
-                  settings: const RouteSettings(name: '/details'),
-                  builder: (_) => const DetailsScreen(),
-                ));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: '/details'),
+                    builder: (_) => const DetailsScreen(),
+                  ),
+                );
               },
               child: const Text('Go to Details'),
             ),

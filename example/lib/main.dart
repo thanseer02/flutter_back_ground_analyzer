@@ -1,32 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_background_analyser/features/analytics/presentation/services/log_helper.dart';
 import 'package:flutter_background_analyser/flutter_background_analyser.dart';
 
 // Mock Services for Demo
 class MockNetworkRepo implements NetworkRepository {
-  @override 
+  @override
   Future<bool> isConnected() async => true;
 }
 
 class MockSessionRepo implements SessionRepository {
-  @override Future<void> clearSession() async {}
-  @override Future<Session?> getCurrentSession() async => null;
-  @override Future<void> saveSession(Session session) async {}
-  @override Future<void> updateSession(Session session) async {}
-  @override Future<void> endSession(String sessionId) async {}
+  @override
+  Future<void> clearSession() async {}
+  @override
+  Future<Session?> getCurrentSession() async => null;
+  @override
+  Future<void> saveSession(Session session) async {}
+  @override
+  Future<void> updateSession(Session session) async {}
+  @override
+  Future<void> endSession(String sessionId) async {}
 }
 
 class ExampleMockUploadService implements AnalyticsUploadService {
   @override
   Future<bool> uploadBatch(List<AnalyticsEvent> events) async {
-    debugPrint('\x1B[35m==================================================\x1B[0m');
-    debugPrint('\x1B[36m🚀 [ExampleMockUpload] Syncing ${events.length} logs to local stream...\x1B[0m');
-    debugPrint('\x1B[35m--------------------------------------------------\x1B[0m');
+    printLogs(
+      '\x1B[35m==================================================\x1B[0m',
+    );
+    printLogs(
+      '\x1B[36m🚀 [ExampleMockUpload] Syncing ${events.length} logs to local stream...\x1B[0m',
+    );
+    printLogs(
+      '\x1B[35m--------------------------------------------------\x1B[0m',
+    );
     for (var i = 0; i < events.length; i++) {
       final e = events[i];
       String color = '\x1B[32m'; // Green
       String icon = '📝';
-      
+
       final type = e.eventType.toString().toLowerCase();
       if (type.contains('error')) {
         color = '\x1B[31m'; // Red
@@ -41,13 +53,17 @@ class ExampleMockUploadService implements AnalyticsUploadService {
         color = '\x1B[36m'; // Cyan
         icon = '🔄';
       }
-      
-      debugPrint('$color[$icon Event #${i + 1}] Type: ${e.eventType} | Screen: ${e.screenName ?? "None"} | Res: ${e.screenResolution} | Id: ${e.installationId.substring(0, 8)}...\x1B[0m');
+
+      printLogs(
+        '$color[$icon Event #${i + 1}] Type: ${e.eventType} | Screen: ${e.screenName ?? "None"} | Res: ${e.screenResolution} | Id: ${e.installationId.substring(0, 8)}...\x1B[0m',
+      );
       if (e.metadata.isNotEmpty) {
-        debugPrint('  \x1B[90m⚙️ Metadata: ${e.metadata}\x1B[0m');
+        printLogs('  \x1B[90m⚙️ Metadata: ${e.metadata}\x1B[0m');
       }
     }
-    debugPrint('\x1B[35m==================================================\x1B[0m');
+    printLogs(
+      '\x1B[35m==================================================\x1B[0m',
+    );
     return true;
   }
 }
@@ -60,7 +76,9 @@ void main() async {
     await Firebase.initializeApp();
     firebaseConnected = true;
   } catch (e) {
-    debugPrint('\x1B[33m⚠️ Firebase not initialized. Using MockUploadService fallback simulations.\x1B[0m');
+    printLogs(
+      '\x1B[33m⚠️ Firebase not initialized. Using MockUploadService fallback simulations.\x1B[0m',
+    );
   }
 
   // 1. Initialize Storage
@@ -83,9 +101,13 @@ void main() async {
   );
 
   // 4. Setup Sync Engine
-  final uploadService = firebaseConnected ? FirebaseUploadService() : ExampleMockUploadService();
+  final uploadService = firebaseConnected
+      ? FirebaseUploadService()
+      : ExampleMockUploadService();
   final syncEngine = SyncEngine(queueManager, uploadService, MockNetworkRepo());
-  syncEngine.startSyncTimer(interval: const Duration(seconds: 15)); // rapid for demo!
+  syncEngine.startSyncTimer(
+    interval: const Duration(seconds: 15),
+  ); // rapid for demo!
 
   // 5. Setup Observers
   final lifecycleObserver = AppLifecycleObserver(analytics);
@@ -110,9 +132,7 @@ class ExampleApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
           useMaterial3: true,
         ),
-        navigatorObservers: [
-          AnalyticsNavigatorObserver(Analytics()),
-        ],
+        navigatorObservers: [AnalyticsNavigatorObserver(Analytics())],
         home: const ExampleHomeScreen(),
       ),
     );
@@ -153,7 +173,10 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
                 setState(() => _counter++);
                 Analytics().recordEvent(
                   EventType.tap,
-                  metadata: {'tap_type': 'counter_button', 'increment_value': _counter},
+                  metadata: {
+                    'tap_type': 'counter_button',
+                    'increment_value': _counter,
+                  },
                 );
               },
             ),
@@ -162,10 +185,13 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
               icon: const Icon(Icons.slideshow),
               label: const Text('Navigate to Secondary Page'),
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(
-                  settings: const RouteSettings(name: '/details-view'),
-                  builder: (_) => const SecondaryScreen(),
-                ));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: '/details-view'),
+                    builder: (_) => const SecondaryScreen(),
+                  ),
+                );
               },
             ),
             const SizedBox(height: 12),
@@ -175,9 +201,7 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
               onPressed: () {
                 throw Exception("Example Sandbox Exception Triggered!");
               },
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.red,
-              ),
+              style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
             ),
           ],
         ),
@@ -192,9 +216,7 @@ class SecondaryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Secondary Screen Page'),
-      ),
+      appBar: AppBar(title: const Text('Secondary Screen Page')),
       body: Center(
         child: ElevatedButton(
           child: const Text('Go back to Home'),

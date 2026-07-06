@@ -1,9 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_background_analyser/features/analytics/core/uploader/analytics_upload_service.dart';
 import 'package:flutter_background_analyser/features/analytics/domain/entities/analytics_event.dart';
+import 'package:flutter_background_analyser/features/analytics/presentation/services/log_helper.dart';
 
 class FirebaseUploadService implements AnalyticsUploadService {
   final FirebaseFirestore _firestore;
@@ -18,19 +18,19 @@ class FirebaseUploadService implements AnalyticsUploadService {
   @override
   Future<bool> uploadBatch(List<AnalyticsEvent> events) async {
     if (events.isEmpty) {
-      debugPrint('🔥 [FirebaseUploadService] No events to upload.');
+      printLogs('🔥 [FirebaseUploadService] No events to upload.');
       return true;
     }
 
     if (Firebase.apps.isEmpty) {
-      debugPrint(
+      printLogs(
         '🔥 [FirebaseUploadService] Firebase is not initialized. Skipping upload.',
       );
       return true;
     }
 
     try {
-      debugPrint(
+      printLogs(
         '🔥 [FirebaseUploadService] Uploading ${events.length} event(s) to Firestore...',
       );
       final batch = _firestore.batch();
@@ -80,7 +80,7 @@ class FirebaseUploadService implements AnalyticsUploadService {
       }
 
       await batch.commit();
-      debugPrint(
+      printLogs(
         '✅ [FirebaseUploadService] Firestore batch commit succeeded for ${events.length} event(s).',
       );
 
@@ -91,7 +91,7 @@ class FirebaseUploadService implements AnalyticsUploadService {
 
       return true;
     } catch (e) {
-      debugPrint(
+      printLogs(
         '❌ [FirebaseUploadService] Failed to upload events to Firestore: $e',
       );
       return false;
@@ -100,7 +100,7 @@ class FirebaseUploadService implements AnalyticsUploadService {
 
   Future<void> _mirrorToFirebaseAnalytics(AnalyticsEvent e) async {
     try {
-      debugPrint(
+      printLogs(
         '🔁 [FirebaseUploadService] Mirroring event ${e.eventId} to Firebase Analytics.',
       );
       if (e.userId != null && e.userId!.isNotEmpty) {
